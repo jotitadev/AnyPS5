@@ -14,6 +14,8 @@
 #include <cerrno>
 #include <fcntl.h>
 #include <sys/stat.h>
+#endif
+#ifndef _WIN32
 #include <unistd.h>
 #endif
 #include "SceTypes.hpp"
