@@ -100,7 +100,12 @@ int OpenMetadata(const std::filesystem::path& path, bool directory) {
     }
     return descriptor;
 #else
-    const int descriptor = ::open(path.c_str(), O_PATH | O_CLOEXEC | (directory ? O_DIRECTORY : 0));
+#ifdef O_PATH
+    constexpr int metadataAccess = O_PATH;
+#else
+    constexpr int metadataAccess = O_RDONLY | O_NONBLOCK | O_NOCTTY;
+#endif
+    const int descriptor = ::open(path.c_str(), metadataAccess | O_CLOEXEC | (directory ? O_DIRECTORY : 0));
     return descriptor < 0 ? Fail(HostError(errno)) : descriptor;
 #endif
 }
