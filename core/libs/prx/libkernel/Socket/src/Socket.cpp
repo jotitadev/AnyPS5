@@ -18,6 +18,9 @@
 
 #ifndef _WIN32
 #include <poll.h>
+#include <sys/stat.h>
+#else
+#include "prx/libc/include/WindowsDescriptor.hpp"
 #endif
 
 namespace {
@@ -42,9 +45,15 @@ bool DescriptorSet(const void* set, int descriptor) {
     return set != nullptr && ((static_cast<const std::uint64_t*>(set)[descriptor / 64] >> (descriptor % 64)) & 1u) != 0;
 }
 
-void UnknownDescriptor(int descriptor) {
-    const auto what = "select on descriptor " + std::to_string(descriptor) + " (not a libSceNet socket)";
-    NotImplemented_nid_no_patch(what.c_str());
+short FileReady(int descriptor, short events) {
+#ifndef _WIN32
+    struct stat status{};
+    const bool regular = ::fstat(descriptor, &status) == 0 && S_ISREG(status.st_mode);
+#else
+    const bool regular = ::GetFileType(WindowsDescriptorHandle_nid_no_patch(descriptor)) == FILE_TYPE_DISK;
+#endif
+    if (!regular) return 0;
+    return static_cast<short>(events & (KernelSocketPoll::Readable | KernelSocketPoll::Writable));
 }
 
 void ClearDescriptor(void* set, int descriptor) {
@@ -262,8 +271,15 @@ int APS5_VABI select_nid_postfix(int nfds, void* readfds, void* writefds, void* 
             }
         }
         int ready = 0;
-        for (const auto& entry : requested) {
-            if ((entry.revents & KernelSocketPoll::Unknown) != 0) UnknownDescriptor(entry.descriptor);
+        for (auto& entry : requested) {
+            if ((entry.revents & KernelSocketPoll::Unknown) != 0) {
+                const short resolved = FileReady(entry.descriptor, entry.events);
+                if (resolved == 0) {
+                    *__error_nid_postfix() = GuestEbadf;
+                    return -1;
+                }
+                entry.revents = resolved;
+            }
             const bool readable = (entry.events & KernelSocketPoll::Readable) != 0 && (entry.revents & (KernelSocketPoll::Readable | KernelSocketPoll::HangUp | KernelSocketPoll::Error)) != 0;
             const bool writable = (entry.events & KernelSocketPoll::Writable) != 0 && (entry.revents & (KernelSocketPoll::Writable | KernelSocketPoll::Error)) != 0;
             const bool urgent = (entry.events & KernelSocketPoll::Urgent) != 0 && (entry.revents & KernelSocketPoll::Urgent) != 0;

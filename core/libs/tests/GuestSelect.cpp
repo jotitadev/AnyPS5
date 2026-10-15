@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 
 struct GuestTimeval {
     std::int64_t seconds;
@@ -23,6 +25,7 @@ struct GuestDescriptorSet {
 
 extern "C" {
 int APS5_VABI select_nid_postfix(int, void*, void*, void*, const void*);
+int APS5_VABI open_nid_postfix(const char*, int, int);
 int APS5_VABI pipe_nid_postfix(int*);
 int APS5_VABI close_nid_postfix(int);
 int APS5_VABI socket_nid_postfix(int, int, int);
@@ -159,5 +162,24 @@ int main() {
         GuestTimeval limit{0, 50000};
         Require(select_nid_postfix(reader + 1, read.words.data(), nullptr, nullptr, &limit) == -1);
         Require(*__error_nid_postfix() == GuestEbadf);
+    }
+
+    {
+        const auto path = std::filesystem::path("anyps5-select-regular-file-" +
+            std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        { std::ofstream file(path); file << "data"; }
+        const int regular = open_nid_postfix(path.string().c_str(), 2, 0);
+        Require(regular >= 0 && regular < GuestDescriptorLimit);
+        GuestDescriptorSet read{};
+        GuestDescriptorSet write{};
+        GuestDescriptorSet except{};
+        read.Add(regular);
+        write.Add(regular);
+        except.Add(regular);
+        GuestTimeval none{0, 0};
+        Require(select_nid_postfix(regular + 1, read.words.data(), write.words.data(), except.words.data(), &none) == 2);
+        Require(read.Has(regular) && write.Has(regular) && !except.Has(regular));
+        Require(close_nid_postfix(regular) == 0);
+        std::filesystem::remove(path);
     }
 }
