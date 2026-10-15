@@ -304,6 +304,19 @@ int main() {
         Require(symlink_nid_postfix("missing.bin", dangling.c_str()) == 0);
         Require(readlink_nid_postfix(dangling.c_str(), buffer, sizeof(buffer)) == 11 && !std::filesystem::exists(dangling));
         Require(symlink_nid_postfix("missing.bin", dangling.c_str()) == -1 && Error() == 17);
+        const auto absoluteLink = (root / "absolute").string();
+        Require(symlink_nid_postfix("/original.bin", absoluteLink.c_str()) == 0);
+        Require(std::filesystem::is_symlink(std::filesystem::symlink_status(absoluteLink)));
+        Require(std::filesystem::read_symlink(absoluteLink, error) == std::filesystem::path("/original.bin") && !error);
+        Require(readlink_nid_postfix(absoluteLink.c_str(), buffer, sizeof(buffer)) == 13 && std::memcmp(buffer, "/original.bin", 13) == 0);
+        const auto absoluteDanglingLink = (root / "absolute-dangling").string();
+        Require(symlink_nid_postfix("/foo/bar", absoluteDanglingLink.c_str()) == 0);
+        Require(std::filesystem::read_symlink(absoluteDanglingLink, error) == std::filesystem::path("/foo/bar") && !error);
+        Require(readlink_nid_postfix(absoluteDanglingLink.c_str(), buffer, sizeof(buffer)) == 8 && std::memcmp(buffer, "/foo/bar", 8) == 0);
+        const auto relativeParityLink = (root / "relative-parity").string();
+        Require(symlink_nid_postfix("original.bin", relativeParityLink.c_str()) == 0);
+        Require(std::filesystem::read_symlink(relativeParityLink, error) == std::filesystem::path("original.bin") && !error);
+        Require(readlink_nid_postfix(relativeParityLink.c_str(), buffer, sizeof(buffer)) == 12 && std::memcmp(buffer, "original.bin", 12) == 0);
 #endif
     } else {
         Require(created == -1 && Error() == 1);

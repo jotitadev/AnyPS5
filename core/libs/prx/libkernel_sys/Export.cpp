@@ -371,10 +371,6 @@ int APS5_VABI chroot_nid_postfix(const char* path) {
 int APS5_VABI symlink_nid_postfix(const char* target, const char* created) {
     if (target == nullptr || created == nullptr) return static_cast<int>(Fail(GuestEfault));
     if (*target == '\0' || *created == '\0') return static_cast<int>(Fail(GuestEnoent));
-    if (*target == '/') {
-        NotImplemented_nid_no_patch("symlink: absolute targets");
-        return -1;
-    }
     std::filesystem::path native;
     if (const int error = ResolvePathError_nid_no_patch(created, native)) return static_cast<int>(Fail(error));
     std::error_code error;
