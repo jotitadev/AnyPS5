@@ -236,6 +236,8 @@ if(BUILD_TESTING)
     if(Python3_Interpreter_FOUND)
         add_test(NAME nid_pe_references COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/nid/tests/test_pe_references.py $<TARGET_FILE:nid_patcher>)
+        add_test(NAME nid_pe_targets COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/nid/tests/test_pe_targets.py $<TARGET_FILE:nid_patcher>)
     endif()
     if(MINGW)
         target_compile_options(patched_libraries_tests PRIVATE -fasynchronous-unwind-tables)
