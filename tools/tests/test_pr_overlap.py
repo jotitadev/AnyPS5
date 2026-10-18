@@ -346,7 +346,7 @@ class CommentStateTests(unittest.TestCase):
         script = "\n".join([
             "set -eo pipefail",
             "python3() { :; }",
-            'gh() { printf \'%s\\n\' "$*" >> "$RUNNER_TEMP/calls"; case "$*" in "api repos/"*) cat "$RUNNER_TEMP/comment";; esac; }',
+            'gh() { printf \'%s\\n\' "$*" >> "$RUNNER_TEMP/calls"; case "$*" in "api repos/"*) printf \'%s\' "$(< "$RUNNER_TEMP/comment")";; esac; }',
             self.step,
         ])
         (self.root / "step.sh").write_bytes(script.encode("utf-8"))
