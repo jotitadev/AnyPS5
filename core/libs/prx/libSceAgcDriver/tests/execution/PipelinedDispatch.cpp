@@ -34,17 +34,23 @@ constexpr std::uint32_t BufferBytes = Lanes * 4u;
 constexpr std::uint32_t DispatchOpcode = 0x15;
 
 constexpr std::size_t BlockBytes = 65536;
+constexpr std::size_t BlockWords = BlockBytes / sizeof(std::uint32_t);
 
-std::uint32_t* NewBlock() {
+std::uint32_t* NewBlock(std::size_t blocks = 1) {
+    const std::size_t bytes = BlockBytes * blocks;
 #ifdef _WIN32
-    auto* block = static_cast<std::uint32_t*>(VirtualAlloc(nullptr, BlockBytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    auto* block = static_cast<std::uint32_t*>(VirtualAlloc(nullptr, bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 #else
-    auto* block = static_cast<std::uint32_t*>(std::aligned_alloc(BlockBytes, BlockBytes));
+    auto* block = static_cast<std::uint32_t*>(std::aligned_alloc(BlockBytes, bytes));
 #endif
     if (block == nullptr) throw std::runtime_error("pipelined dispatch: cannot allocate a guest block");
-    std::memset(block, 0, BlockBytes);
-    GuestAllocations::Mutation().Add(block, BlockBytes, true, true, false);
+    std::memset(block, 0, bytes);
+    GuestAllocations::Mutation().Add(block, bytes, true, true, false);
     return block;
+}
+
+std::uintptr_t HighDword(const void* pointer) {
+    return reinterpret_cast<std::uintptr_t>(pointer) >> 32u;
 }
 
 std::uint32_t* Input = nullptr;
@@ -171,9 +177,10 @@ int main() {
         Output = NewBlock();
         Scratch = NewBlock();
         Table = NewBlock();
-        TargetA = NewBlock();
-        TargetB = NewBlock();
-        check((reinterpret_cast<std::uintptr_t>(TargetA) >> 32u) == (reinterpret_cast<std::uintptr_t>(TargetB) >> 32u), "the two targets do not share their high address dword");
+        auto* targets = NewBlock(3);
+        TargetA = HighDword(targets) == HighDword(targets + BlockWords) ? targets : targets + BlockWords;
+        TargetB = TargetA + BlockWords;
+        check(HighDword(TargetA) == HighDword(TargetB), "the two targets do not share their high address dword");
         const auto initialDescriptor = BufferDescriptor(TargetA, BufferBytes);
         std::copy(initialDescriptor.begin(), initialDescriptor.end(), Table);
         const std::array<std::uint32_t, 5> values{0x0a0b0c0du, 0x11112222u, 0x33334444u, 0x55556666u, 0x77778888u};
