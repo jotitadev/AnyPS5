@@ -21,6 +21,9 @@ add_library(atrac9 STATIC EXCLUDE_FROM_ALL
 )
 target_include_directories(atrac9 PRIVATE ${LIBATRAC9_DIR})
 set_target_properties(atrac9 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(NOT WIN32)
+    target_link_libraries(atrac9 PUBLIC m)
+endif()
 
 set(VGMSTREAM_ATRAC9_DIR ${CMAKE_SOURCE_DIR}/3rdparty/vgmstream/src/coding/libs)
 add_library(atrac9_vibration STATIC EXCLUDE_FROM_ALL
@@ -47,9 +50,6 @@ if(BUILD_TESTING)
     add_test_executable(atrac9_config_data_tests tests/Atrac9ConfigData.c)
     target_include_directories(atrac9_config_data_tests PRIVATE ${LIBATRAC9_DIR})
     target_link_libraries(atrac9_config_data_tests PRIVATE atrac9)
-    if(NOT WIN32)
-        target_link_libraries(atrac9_config_data_tests PRIVATE m)
-    endif()
     add_test(NAME atrac9_config_data COMMAND atrac9_config_data_tests)
 
     add_test_executable(guest_ajm_tests ${LIBS_INCLUDE_DIR}/tests/GuestAjm.cpp)
