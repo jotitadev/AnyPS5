@@ -304,11 +304,15 @@ int APS5_VABI wcsrtombs_s_nid_postfix(
     return 0;
 }
 
+int WcstombsS_nid_no_patch(std::size_t* result, char* destination, std::size_t capacity, const std::uint16_t* source, std::size_t limit) {
+    std::array<std::uint64_t, 16> state{};
+    return wcsrtombs_s_nid_postfix(result, destination, capacity, &source, limit, state.data());
+}
+
 int APS5_VABI wcstombs_s_nid_postfix(
     std::size_t* result, char* destination, std::size_t capacity, const std::uint16_t* source, std::size_t limit
 ) {
-    std::array<std::uint64_t, 16> state{};
-    return wcsrtombs_s_nid_postfix(result, destination, capacity, &source, limit, state.data());
+    return WcstombsS_nid_no_patch(result, destination, capacity, source, limit);
 }
 
 std::size_t APS5_VABI mbsrtowcs_nid_postfix(std::uint16_t* destination, const char** source, std::size_t capacity, void*) {

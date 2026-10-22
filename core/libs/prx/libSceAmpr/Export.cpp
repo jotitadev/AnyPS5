@@ -240,7 +240,7 @@ static constexpr std::uint32_t AmmRingIdleFlags = 0x7;
 
 extern "C" {
 int APS5_VABI _Cnd_init_nid_postfix(void** handle);
-int APS5_VABI wcstombs_s_nid_postfix(std::size_t* result, char* destination, std::size_t capacity, const std::uint16_t* source, std::size_t limit);
+int WcstombsS_nid_no_patch(std::size_t* result, char* destination, std::size_t capacity, const std::uint16_t* source, std::size_t limit);
 [[noreturn]] void APS5_VABI __cxa_call_terminate_nid_postfix(void* exception);
 
 int APS5_VABI sceAmprCommandBufferWriteAddressOnCompletion(Apr::CommandBufferObject* buffer, volatile std::uint64_t* address, std::uint64_t value) {
@@ -934,7 +934,7 @@ void APS5_VABI sceAmprIgnoreHandlerS(const char* message, void* pointer, int err
 
 APS5_EXPORT("sZLrjx-yEx4", sceAmprWcstombsS);
 int APS5_VABI sceAmprWcstombsS(std::size_t* result, char* destination, std::size_t capacity, const std::uint16_t* source, std::size_t limit) {
-    return wcstombs_s_nid_postfix(result, destination, capacity, source, limit);
+    return WcstombsS_nid_no_patch(result, destination, capacity, source, limit);
 }
 
 APS5_EXPORT("VUzjXknPPBs", sceAmprMbstowcs);
