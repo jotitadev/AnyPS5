@@ -56,6 +56,9 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#ifdef __APPLE__
+#include <sys/event.h>
+#endif
 
 extern "C" int* APS5_VABI __error_nid_postfix();
 extern "C" int APS5_VABI dup2_nid_postfix(int from, int to);
@@ -977,7 +980,19 @@ bool GuestSockets::PipeWriteState(int descriptor, std::int64_t* data, bool* eof,
     *data = *eof ? 0 : std::max<std::int64_t>(0, capacity - queued);
 #else
     if (!IsPipe(descriptor, 0) || (::fcntl(descriptor, F_GETFL) & O_ACCMODE) == O_RDONLY) return false;
-    NotImplemented_nid_no_patch("kevent: EVFILT_WRITE on a pipe on macOS");
+    const int queue = ::kqueue();
+    if (queue < 0) throw std::runtime_error("kevent: creating a host kqueue for pipe descriptor " + std::to_string(descriptor) + " failed");
+    struct kevent change{};
+    EV_SET(&change, descriptor, EVFILT_WRITE, EV_ADD, 0, 0, nullptr);
+    struct kevent result{};
+    const timespec zero{};
+    const int ready = ::kevent(queue, &change, 1, &result, 1, &zero);
+    ::close(queue);
+    if (ready < 0 || (ready == 1 && (result.flags & EV_ERROR) != 0))
+        throw std::runtime_error("kevent: querying pipe descriptor " + std::to_string(descriptor) + " failed");
+    *eof = ready == 1 && (result.flags & EV_EOF) != 0;
+    *writable = ready == 1;
+    *data = ready == 1 && !*eof ? static_cast<std::int64_t>(result.data) : 0;
 #endif
     return true;
 }

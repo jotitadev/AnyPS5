@@ -260,7 +260,6 @@ static void PipeRead() {
     Require(close_nid_postfix(kq) == 0);
 }
 
-#ifndef __APPLE__
 static void PipeWrite() {
     const int kq = kqueue_nid_postfix();
     int pipe[2];
@@ -306,7 +305,11 @@ static void PipeWrite() {
     reader.join();
     Require(waited >= std::chrono::milliseconds(40) && waited < std::chrono::seconds(4));
     Require(events[0].ident == writeEnd && events[0].data >= PipeAtomic && (events[0].flags & EvEof) == 0);
+#ifdef __APPLE__
+    Require(Poll(kq, events, 4) == 1 && events[0].data >= empty);
+#else
     Require(Poll(kq, events, 4) == 1 && events[0].data == empty);
+#endif
 #else
     char back[3];
     Require(read_nid_postfix(pipe[0], back, 3) == 3);
@@ -320,7 +323,6 @@ static void PipeWrite() {
     Require(close_nid_postfix(pipe[1]) == 0);
     Require(close_nid_postfix(kq) == 0);
 }
-#endif
 
 static void SocketPair() {
     const int kq = kqueue_nid_postfix();
@@ -810,9 +812,6 @@ static void Errors() {
     Require(pipe_nid_postfix(pipe) == 0);
     Require(Throws([kq, &pipe] { Apply(kq, Change(static_cast<std::uintptr_t>(pipe[1]), EvfiltRead, EvAdd)); }));
     Require(Throws([kq, &pipe] { Apply(kq, Change(static_cast<std::uintptr_t>(pipe[0]), EvfiltWrite, EvAdd)); }));
-#ifdef __APPLE__
-    Require(Throws([kq, &pipe] { Apply(kq, Change(static_cast<std::uintptr_t>(pipe[1]), EvfiltWrite, EvAdd)); }));
-#endif
 #ifndef __linux__
     Require(Throws([kq, &pipe] { Apply(kq, Change(static_cast<std::uintptr_t>(pipe[0]), EvfiltRead, EvAdd | EvClear)); }));
 #endif
@@ -1138,9 +1137,7 @@ int main() {
     CreateAndClose();
     Timers();
     PipeRead();
-#ifndef __APPLE__
     PipeWrite();
-#endif
     UserEvents();
     WatchKqueue();
     SocketPair();
