@@ -15,6 +15,9 @@ int APS5_VABI connect_nid_postfix(int, const void*, std::uint32_t);
 int APS5_VABI accept_nid_postfix(int, void*, std::uint32_t*);
 std::int64_t APS5_VABI send_nid_postfix(int, const void*, std::uint64_t, int);
 std::int64_t APS5_VABI recv_nid_postfix(int, void*, std::uint64_t, int);
+int APS5_VABI setsockopt_nid_postfix(int, int, int, const void*, std::uint32_t);
+int APS5_VABI getsockopt_nid_postfix(int, int, int, void*, std::uint32_t*);
+int APS5_VABI fcntl_nid_postfix(int, int, ...);
 int APS5_VABI close_nid_postfix(int);
 int APS5_VABI pipe_nid_postfix(int*);
 std::int64_t APS5_VABI read_nid_postfix(int, void*, std::uint64_t);
@@ -35,6 +38,10 @@ static constexpr int SCE_KERNEL_ERROR_ETIMEDOUT = static_cast<int>(0x8002003c);
 static constexpr int EVFILT_READ = -1;
 static constexpr int EVFILT_WRITE = -2;
 static constexpr std::uint16_t EV_EOF = 0x8000;
+static constexpr int SolSocket = 0xffff;
+static constexpr int SoSendBuffer = 0x1001;
+static constexpr int SetFlags = 4;
+static constexpr int NonBlocking = 4;
 
 static void Require(bool value) { if (!value) std::abort(); }
 
@@ -94,6 +101,41 @@ static void PipeReadEvents() {
     Require(close_nid_postfix(oneWay[0]) == 0 && close_nid_postfix(oneWay[1]) == 0);
     Require(close_nid_postfix(pipe[0]) == 0);
     Require(sceKernelDeleteEqueue(eq) == SCE_OK);
+}
+
+static void QueuedSendSpace(int listener, const std::array<std::uint8_t, 16>& address) {
+    const int sender = socket_nid_postfix(2, 1, 0);
+    int size = 65536;
+    Require(sender >= 0 && setsockopt_nid_postfix(sender, SolSocket, SoSendBuffer, &size, sizeof(size)) == 0);
+    Require(connect_nid_postfix(sender, address.data(), address.size()) == 0);
+    const int receiver = accept_nid_postfix(listener, nullptr, nullptr);
+    Require(receiver >= 0 && fcntl_nid_postfix(sender, SetFlags, NonBlocking) == 0);
+    std::array<char, 4096> chunk{};
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    for (bool sent = true; sent;) {
+        Require(std::chrono::steady_clock::now() < deadline);
+        sent = false;
+        while (send_nid_postfix(sender, chunk.data(), chunk.size(), 0) > 0) sent = true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    size = 262144;
+    Require(setsockopt_nid_postfix(sender, SolSocket, SoSendBuffer, &size, sizeof(size)) == 0);
+    int capacity = 0;
+    std::uint32_t length = sizeof(capacity);
+    Require(getsockopt_nid_postfix(sender, SolSocket, SoSendBuffer, &capacity, &length) == 0);
+
+    KernelEqueue eq = 0;
+    Require(sceKernelCreateEqueue(&eq, "queued") == SCE_OK);
+    const KernelUseconds timeout = 1000000;
+    int count = 0;
+    std::array<KernelEvent, 4> events{};
+    Require(sceKernelAddWriteEvent(eq, sender, 0, nullptr) == SCE_OK);
+    Require(sceKernelWaitEqueue(eq, events.data(), events.size(), &count, &timeout) == SCE_OK);
+    Require(count == 1 && events[0].filter == EVFILT_WRITE && events[0].ident == static_cast<std::uintptr_t>(sender));
+    Require(events[0].data > 0 && events[0].data < capacity);
+    Require(sceKernelDeleteWriteEvent(eq, sender) == SCE_OK);
+    Require(sceKernelDeleteEqueue(eq) == SCE_OK);
+    Require(close_nid_postfix(receiver) == 0 && close_nid_postfix(sender) == 0);
 }
 
 int main() {
@@ -201,6 +243,9 @@ int main() {
     Require(sceKernelAddReadEvent(eq, client, 1, nullptr) == SCE_KERNEL_ERROR_EBADF);
     Require(Rejects(sceKernelAddReadEvent, eq, 0, 1));
     Require(Rejects(sceKernelAddWriteEvent, eq, accepted, 64));
+#ifndef _WIN32
+    QueuedSendSpace(listener, address);
+#endif
 
     Require(close_nid_postfix(accepted) == 0);
     Require(close_nid_postfix(listener) == 0);

@@ -923,6 +923,10 @@ bool GuestSockets::Ready(int descriptor, bool write, std::int64_t* data, bool* e
 #ifdef __linux__
         int queued = 0;
         if (*data > 0 && ::ioctl(socket->value, SIOCOUTQ, &queued) == 0) *data = std::max<std::int64_t>(0, *data - queued);
+#elif defined(__APPLE__)
+        int queued = 0;
+        length = sizeof(queued);
+        if (*data > 0 && getsockopt(socket->value, SOL_SOCKET, SO_NWRITE, &queued, &length) == 0) *data = std::max<std::int64_t>(0, *data - queued);
 #endif
     } else if (Listening(*socket)) {
         *data = ListenQueueLength(socket->value);
